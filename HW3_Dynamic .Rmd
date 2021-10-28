@@ -1,0 +1,263 @@
+---
+title: "Mobile Phones"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(rmarkdown)
+library(knitr)
+library(Hmisc)
+library(DT)
+library(data.table)
+assignInNamespace("cedta.override", c(data.table:::cedta.override,"rmarkdown"), "data.table")
+
+
+opts_chunk$set(echo = FALSE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+
+```
+
+```{r source_functions}
+source("functions.R")
+```
+
+
+```{r constants}
+# Most constants have been placed in the file constants.R to unify the work across reporting and applications.
+source("constants.R")
+
+# Additional constants that are unique to this reporting engine can be added here.
+bp.pattern <- "BP_"
+
+```
+
+```{r define_variables}
+#Section 3 Q1
+respondent.variables <- c(age_group.name, gender.name, income_group.name, region.name, persona.name) 
+states.of.engagement <- c(awareness.name, consideration.name, consumption.name, satisfaction.name, advocacy.name)
+
+
+
+
+```
+
+
+
+```{r functions}
+# Most functions have been placed in the file functions.R to unify the work across reporting and applications.
+
+# Additional functions that are unique to this reporting engine can be added here.
+
+percentage.table <- function(x, digits = 1){
+  tab <- table(x)
+  percentage.tab <- 100*tab/(sum(tab))
+  rounded.tab <- round(x = percentage.tab, digits = digits)
+  return(rounded.tab)
+}
+
+```
+
+```{r read_data}
+dat <- fread(input = "~/Desktop/Columbia Fall 2021/Capstone/capstone_wd/HW3/Data/mobile phone survey data.csv", verbose = FALSE )
+
+```
+```{r customize_data}
+dat.baseline <- unique(dat[, c("id", "Age", "Gender", "Income", "Region", "Persona")])
+dat.baseline$income_group <- cut(dat.baseline$Income, breaks = c(0, 49999,74999, 99999,149999, 1000000000), labels = c("<50K", "50-75k", "75K-100K","100K-150K", "150K+"))
+dat.baseline$age_group <- cut(dat.baseline$Age, breaks = c(17,34,49,64,110), labels = c("18-34", "35-49", "50-64", "65+"))
+
+dat$income_group <- cut(dat$Income, breaks = c(0, 49999,74999, 99999,149999, 1000000000), labels = c("<50K", "50-75k", "75K-100K","100K-150K", "150K+"))
+dat$age_group <- cut(dat$Age, breaks = c(17,34,49,64,110), labels = c("18-34", "35-49", "50-64", "65+"))
+```
+
+```{r variables}
+unique.products <- dat[, unique(get(product.name))]
+bp.traits <- names(dat)[grep(pattern = bp.pattern, x = names(dat))]
+
+```
+
+
+Introduction
+=====================================  
+
+--- PROVIDE INSTRUCTIONS 
+
+Q1
+===================================
+
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q1_input}
+inputPanel(
+  selectInput(inputId="respondent_variable", label = "Select Variable:", choices = respondent.variables, selected = respondent.variables[1]),
+  checkboxInput(inputId = "respondent_show_percentages", label = "Show Percentages", value = TRUE)
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q1_output, fig.align='default'}
+
+ renderPlot({
+  tab <- percentage.table(x = dat.baseline[, .SD[1], by = id.name][, get(input$respondent_variable)])
+  barplot(height = tab, space=0.1, las = 1, main = input$respondent_variable, ylab = "Percentage", xlab = input$respondent_variable, ylim = c(0, 1.2*max(tab, na.rm = TRUE)), col = "dodgerblue")
+  
+  if(input$respondent_show_percentages == TRUE){
+    space_val = 0
+    text(x = -0.4 + 1:length(tab) * (1+space_val), y = tab, labels = sprintf("%.1f%%", tab), pos = 3)
+  }
+})
+```
+
+Q2
+=====================================  
+
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q2_input}
+
+
+inputPanel(
+  selectInput(inputId="ep_product", label = "Select Brand:", choices = unique.products, selected = unique.products[1]),
+  selectInput(inputId="ep_state", label = "Select State of Engagement:", choices = states.of.engagement, selected = states.of.engagement[1]),
+  selectInput(inputId="ep_subgroup", label = "Select Subgroup:", choices = c("All", respondent.variables), selected = "All"),
+  checkboxInput(inputId = "ep_show_percentages", label = "Show Percentages", value = TRUE)
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q2_output}
+
+
+renderPlot({
+  if(input$ep_subgroup == "All"){
+    tab <- dat[get(product.name) == input$ep_product, .(Mean = 100*mean(get(input$ep_state), na.rm=TRUE))]
+    tab[, All := "All respondents"]
+  }
+  else{
+    tab <- dat[get(product.name) == input$ep_product, .(Mean = 100*mean(get(input$ep_state), na.rm=TRUE)), keyby = eval(input$ep_subgroup)]
+  }
+  
+  
+  
+    ggplot(tab, aes(x = reorder(input$ep_product, input$ep_state), input$ep_state)) + geom_bar(stat = "identity", fill = "steelblue") + labs(x = "Product", y = "% Difference" ,title = "Top 5 Products with largest Gap")
+
+  
+  if(input$ep_show_percentages == TRUE){
+    space_val = 0
+    text(x = -0.4 + 1:tab[, .N] * (1+space_val), y = tab[, Mean], labels = sprintf("%.1f%%", tab[, Mean]), pos = 3)
+  }
+})
+
+
+
+```
+
+```{r}
+
+# input <- list(ep_product = unique.products[1], ep_state = states.of.engagement[1], ep_subgroup = "All", ep_show_percentages = TRUE)
+```
+
+```{r engagement_plots_output}
+```
+
+Question 3
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q3_input}
+
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q3_output}
+
+
+
+
+```
+
+
+Question 4
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q4_input}
+
+inputPanel(
+  selectInput(inputId="outcome", label = "Select Outcome:", choices = states.of.engagement, selected = advocacy.name),
+    selectInput(inputId="outcome1", label = "Select Outcome:", choices = states.of.engagement, selected = satisfaction.name),
+
+  #selectInput(inputId="ep_state", label = "Select State of Engagement:", choices = states.of.engagement, selected = states.of.engagement[1]),
+  #selectInput(inputId="ep_subgroup", label = "Select Subgroup:", choices = c("All", respondent.variables), selected = "All"),
+  checkboxInput(inputId = "ep_show_percentages", label = "Show Percentages", value = TRUE),
+    sliderInput(inputId = "digits", label = "Select Digits To Round", min = 0, max = 5, value = 1, step = 1)
+
+  
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q4_output}
+
+renderPlot({
+  
+
+  x1 <- dat[, .(X1 = mean(get(input$outcome), na.rm = TRUE)), by = Product]
+  
+  x2 <-dat[, .(X2 = mean(get(input$outcome1), na.rm = TRUE)/10), by = Product]
+  
+  mer <- merge(x1, x2)
+  
+  
+  Gap_df <- mer[, .(Gap = (X1 - X2)*100), by = Product][order(-rank(Gap))][1:5, .(Product, Gap)][,lapply(X = .SD, FUN = "round.numerics", digits = input$digits)]
+  
+  ggplot(Gap_df, aes(x = reorder(Product, -Gap), Gap)) + geom_bar(stat = "identity", fill = "steelblue") + labs(x = "Product", y = "% Difference" ,title = "Top 5 Products with largest Gap")
+  
+  #if (input$ep_show_percentages == TRUE) {
+    
+   # text( x = Gap_df[Product])
+    
+  #}
+   
+})
+
+
+```
+
+Question 5
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+
+```{r q5_input}
+
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q5_output}
+
+```
+

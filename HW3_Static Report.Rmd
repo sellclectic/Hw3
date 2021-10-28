@@ -1,0 +1,365 @@
+---
+title: "Customized Product Perceptions Dashboard"
+author: "Daniel Dasgupta"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+```
+
+```{r source}
+source("constants.R")
+source("functions.R")
+```
+
+
+```{r libraries, echo = FALSE, warning=FALSE, message=FALSE}
+library(data.table)
+library(DT)
+library(knitr)
+library(ggplot2)
+
+```
+
+```{r read_data}
+dat <- fread(input = "~/Desktop/Columbia Fall 2021/Capstone/capstone_wd/HW3/Data/mobile phone survey data.csv", verbose = FALSE )
+```
+
+
+```{r exploration}
+dat.baseline <- unique(dat[, c("id", "Age", "Gender", "Income", "Region", "Persona")])
+dat.baseline$age_group <- cut(dat.baseline$Age, breaks = c(17,34,49,64,110), labels = c("18-34", "35-49", "50-64", "65+"))
+dat.baseline$income_group <- cut(dat.baseline$Income, breaks = c(0, 49999,74999, 99999,149999, 1000000000), labels = c("<50K", "50-75k", "75K-100K","100K-150K", "150K+"))
+
+
+dat$income_group <- cut(dat$Income, breaks = c(0, 49999,74999, 99999,149999, 1000000000), labels = c("<50K", "50-75k", "75K-100K","100K-150K", "150K+"))
+dat$age_group <- cut(dat$Age, breaks = c(17,34,49,64,110), labels = c("18-34", "35-49", "50-64", "65+"))
+
+
+#Variables
+
+respondent.variables <- c(age_group.name, gender.name, income_group.name, region.name, persona.name) 
+states.of.engagement <- c(awareness.name, consideration.name, consumption.name, satisfaction.name, advocacy.name)
+
+```
+
+
+# Report {.tabset}
+
+## Part 1:  Summary
+
+The mobile phone data captures the survey's respondent outcomes through different product perception categories and also contains descriptive demographic variables for each respondent.  There can be multiple responses from a single respondent. 
+
+The following variables are captured:
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+* **ID - Respondent Identifier**   <br>
+* **Respondent Age**  <br>
+* **Gender** (Male/Female) <br>
+* **Income** <br>
+* **Region**  (Respondent Geographic Location: South, Northeast, Midwest, West)<br>
+* **Respondent Persona  **("Materialistic Meditator" "Outdoorsy Ombudsman" "Precociously Preoccupied" <br> 
+    "Ambivalent Adventurer" "Technological Triumphalist" "Consistent Compromiser")<br>
+* **Product**  ("Smartophonic" "MobilitEE" "Screenz" "Next Text" "Maybe Mobile" "App Map" "Phone Zone" etc) <br>
+* **Perception Categories ("User Friendly, "Stylish", "Expensive" etc)** <br>
+</div>
+
+
+```{r part1}
+kable(dat[95:100])
+
+```
+
+## Part 2:  Specific Questions {.tabset}
+
+
+### Q1: Respondent Variables {.tabset}
+
+#### Age Group
+
+```{r q1_age.group}
+
+age_tab <- calc.perc(dat.baseline, variable = age_group.name)
+
+datatable(age_tab)
+
+```
+
+#### Gender
+
+```{r q1_gender}
+gender_tab <- calc.perc(dat.baseline, variable = gender.name)
+#(gender_tab, cols = "Perc", order = -1)
+
+datatable(gender_tab)
+
+```
+
+#### Income Group
+
+```{r q1_income.group}
+
+income_tab <- calc.perc(dat.baseline, variable=  income_group.name )
+setorderv(income_tab, cols = "income_group", order = 1)
+
+datatable(income_tab)
+
+```
+
+#### Region
+ 
+```{r region}
+region_tab <- calc.perc(dat.baseline, variable = region.name)
+#setorderv(region_tab, cols = "Perc", order = -1)
+
+datatable(region_tab)
+```
+
+#### Persona
+
+```{r persona}
+persona_tab <- calc.perc(dat.baseline, variable = persona.name)
+#setorderv(persona_tab, cols = "Perc", order = -1)
+
+datatable(persona_tab)
+```
+
+
+### Q2:  Segmented Outcomes {.tabset}
+
+#### Part A
+
+What are the top 5 products by Awareness rates in the Northeast?
+
+```{r q2_a}
+
+engagement_rate_respondent <- function(dat, states.of.engagement, respondent.variables, respond.variable.selection){
+  numer <- dat[get(states.of.engagement) == 1 & get(respondent.variables) == respond.variable.selection][, .(Num = .N), by = product.name]
+  denoma <- dat[get(respondent.variables) == respond.variable.selection][, .(Denom = .N), by = product.name]
+  
+  rate = merge(numer, denoma, by = product.name)
+  rate = rate[, Rate := Num/Denom *100, by = product.name]
+  rate = rate[, lapply(X = .SD, FUN = "round.numerics", digits = 2)]
+  rate = rate[, .(Product, Rate)]
+  setorderv(x = rate, cols = "Rate", order = -1)
+  return(rate[1:5])
+  
+}
+
+parta = engagement_rate_respondent(dat, states.of.engagement = awareness.name, respondent.variables = region.name, respond.variable.selection = "Northeast")
+parta
+
+
+```
+
+#### Part B
+
+What are the top 5 products by Advocacy rates among females who earn at least $100,000?
+
+```{r q2_b}
+
+
+
+
+engagement_rate_respondent_two <- function(dat, states.of.engagement, respondent.variables, respond.variable.selection, respondent.variables1, respond.variable.selection1){
+  numer <- dat[get(states.of.engagement) == 1 & get(respondent.variables) == respond.variable.selection & get(respondent.variables1) >= respond.variable.selection1][, .(Num = .N), by = product.name]
+  
+  denoma <- dat[get(respondent.variables) == respond.variable.selection & get(respondent.variables1) >= respond.variable.selection1 & 
+                  (get(states.of.engagement) == 1 | get(states.of.engagement) == 0)][, .(Denom = .N), by = product.name]
+  
+  rate = merge(numer, denoma, by = product.name)
+  rate = rate[, Rate := Num/Denom *100, by = product.name]
+  rate = rate[, lapply(X = .SD, FUN = "round.numerics", digits = 2)]
+  rate = rate[, .(Product, Rate)]
+  setorderv(x = rate, cols = "Rate", order = -1)
+  return(rate[1:5])
+  
+}
+
+partb = engagement_rate_respondent_two(dat, states.of.engagement = advocacy.name, respondent.variables = gender.name, respond.variable.selection = "Female", respondent.variables1 = income.name,  respond.variable.selection1 = 100000 )
+partb
+
+
+
+```
+
+
+### Q3:  Overall Brand Perceptions {.tabset}
+
+What are the top 5 brands by the overall average perception?
+
+
+```{r q3}
+
+
+positive.perception = dat[, lapply(X = .SD, FUN = "mean", na.rm = TRUE), .SDcols = 9:20, by = Product][, .SD, .SDcols = 1:9]
+
+negative.perception = dat[, lapply(X = .SD, FUN = "mean", na.rm = TRUE), .SDcols = 9:20, by = Product][, lapply(X = .SD, FUN = "invert_func"), .SDcols = 10:13, by=Product]
+
+all.perceptions = merge(positive.perception,negative.perception)
+
+top5_avg_perception = all.perceptions[, "Average_Perception" := rowMeans(.SD), .SDcols = 2:13][order(-rank(Average_Perception))][1:5,.(Product, Average_Perception)][, lapply(X = .SD, FUN = "round.numerics", digits = 2)]
+
+datatable(top5_avg_perception)
+```
+
+
+### Q4: Gaps in Outcomes {.tabset}
+
+
+#### Part A
+
+Which 5 products have the largest gap between the rate of consumption and the rate of awareness?
+
+```{r q4_a}
+
+
+engagement_rate_gap <- function(dat, engagement1, engagement2){
+  x1 <- dat[, .(X1 = mean(get(engagement1), na.rm = TRUE)), by = Product]
+  
+  x2 <-dat[, .(X2 = mean(get(engagement2), na.rm = TRUE)), by = Product]
+  
+  mer <- merge(x1, x2)
+  
+  
+  Gap_df <- mer[, .(Gap = (X1 - X2)*100), by = Product][order(-rank(Gap))][1:5, .(Product, Gap)][,lapply(X = .SD, FUN = "round.numerics", digits = 1)]
+  
+  ggplot(Gap_df, aes(x = reorder(Product, -Gap), Gap)) + geom_bar(stat = "identity", fill = "steelblue") + labs(x = "Product", y = "% Difference" , title = "Top 5 Products with Largest Gap")
+}
+
+engagement_rate_gap(dat, engagement1 =  consumption.name, engagement2 = awareness.name)
+
+```
+
+#### Part B
+
+Which 5 products have the largest gap between the rate of Awareness and the average Satisfaction?
+
+```{r q4_b}
+
+
+engagement_rate_outcome_gap <- function(dat, engagement1, outcome){
+  x1 <- dat[, .(X1 = mean(get(engagement1), na.rm = TRUE)), by = Product]
+  
+  x2 <-dat[, .(X2 = mean(get(outcome), na.rm = TRUE)/10), by = Product]
+  
+  mer <- merge(x1, x2)
+  
+  
+  Gap_df <- mer[, .(Gap = (X1 - X2)*100), by = Product][order(-rank(Gap))][1:5, .(Product, Gap)][,lapply(X = .SD, FUN = "round.numerics", digits = 1)]
+  
+  ggplot(Gap_df, aes(x = reorder(Product, -Gap), Gap)) + geom_bar(stat = "identity", fill = "steelblue") + labs(x = "Product", y = "% Difference" ,title = "Top 5 Products with largest Gap")
+}
+
+engagement_rate_outcome_gap(dat, engagement1 = awareness.name, outcome = satisfaction.name)
+```
+
+
+### Q5: Aggregated Engagement {.tabset}
+
+#### Part A
+
+How much impact does respondent's overall trends in awareness have for that person's awareness with Buzzdial phones?
+
+```{r q5_a}
+log_regression(dat, product_type =  buzzdial.name, engagement = awareness.name, alpha = 0.05, digits = 3)
+
+```
+
+#### Part B
+
+How much impact does respondent's overall trends in satisfaction have for that person's satisfaction with Buzzdial phones?
+
+```{r q5_b}
+
+
+lin_regression(dat, product_type =  buzzdial.name, engagement = satisfaction.name, digits = 3, alpha = 0.05)
+```
+
+
+
+## Part 3:  Reporting Engine {.tabset}
+
+This section of the work is available in the file ...
+
+## Part 4:  Opportunities {.tabset}
+
+### Q1
+
+* **How would you build on the reporting capabilities that you have created?  What would you design next? **
+
+Potentially a SQL database 
+
+
+### Q2
+
+* **What are some opportunities to learn valuable information and inform strategic decisions?  List a number of questions that you might explore.**
+
+Can see that Screenz, Cellularity and Next Text had the highest overall average perception.  However, did these products have the highest sales?  What is the relationship between sales and product perception? 
+
+How does the price of products effect perception? 
+
+Are there certain products that specific customer segments purchase?  
+
+what form of marketing is most effective
+
+hypothesis testing 
+
+which products recieved better feedbak 
+
+Over 32% of respondents with incomes <50k 
+85% of respondents under 65 years old
+
+
+
+#Increasing Accuracy 
+How would the top products by different perception rates by specific demographic respondent groups differ after standardizing the data, e.i. setting a minimum sample size, be compared to the current state? 
+
+Specifically, the report calculated Communic Nations as the top product by advocacy rate among females who earn at least 100k - 
+however, the data only contains 7 responses (in the same subgroup, 332 responses were recorded for Buzzdail). 
+
+
+
+product prices 
+
+
+How can the survey be designed better? For example, can each product have an individual survey in order to increase responses?  
+How is the survey being delivered (email, text etc) and at what time (right after product purchase? after viewing the product online?) 
+
+### Q3
+
+* **How would you approach other decision makers within the client's organization to assess their priorities and help them better utilize the available information?**
+
+First, I need to understand the vision and priorities of the client.  Decision makers come from various backgrounds and have different needs to solve problems. I would approach each decision maker differently, depending on their responsibilities. To start, I would make a list of decisions that could potentially arise in the coming quarter, mid-year review and annual report. 
+
+Additionally, I would seek feedback from the client on this report and dashboard to make sure their expectations are met.  This would allow me to potentially adjust the functionality in the dashboard or specific analysis in the report, to create a resource that is more likely to be useful for the client.  
+
+
+
+
+goal is to make more money- is it best to target lower or higher income,  during the design phase, was the product 
+targeted to certain populations?  or is it widespread use 
+
+how can the survey be designed better  how often are customers given a survey 
+
+advertising schemes 
+
+how do these products compare to competitors? 
+
+What products to continue promoting as they have postive results, and other products that shuold be shut down.  
+
+Communicate how there are some flaws in the data.  
+
+
+
+-- 
+
+
+### Q4
+
+**Video Submission:**  Make a 2-minute pitch to the client with a proposal for the next phase of work.  Include in your request a budget, a time frame, and staffing levels.  Explain why this proposal would be valuable for the client and worth the investment in your consulting services.  Please submit this answer as a short video recording. You may use any video recording program you feel comfortable with. The only requirements are that you are visible and audible in the video.  You may also submit a file of slides if that is part of your pitch.
